@@ -3,14 +3,18 @@ import express from "express";
 const app = express();
 app.use(express.json());
 
-let bots = {}; // เก็บเวลายิงล่าสุด { botId: timestamp }
-let allowReceive = true; // เปิด/ปิดการรับยิง
+let bots = {}; // { botId: timestamp }
+let allowReceive = true;
+let alerts = []; // เก็บประวัติการยิงบอท
 
 // API ให้บอทยิงมา
 app.post("/ping/:botId", (req, res) => {
   if (!allowReceive) return res.status(403).json({ message: "Receiving disabled" });
   const botId = req.params.botId;
-  bots[botId] = Date.now();
+  const now = Date.now();
+  bots[botId] = now;
+  alerts.unshift({ botId, time: now });
+  if (alerts.length > 20) alerts.pop(); // เก็บแค่ 20 รายการล่าสุด
   res.json({ message: `Bot ${botId} ping received` });
 });
 
@@ -18,6 +22,11 @@ app.post("/ping/:botId", (req, res) => {
 app.post("/toggle", (req, res) => {
   allowReceive = !allowReceive;
   res.redirect("/");
+});
+
+// API ส่งข้อมูล JSON ไปให้หน้าเว็บดึง
+app.get("/data", (req, res) => {
+  res.json({ bots, alerts, allowReceive });
 });
 
 // ตรวจบอท และ deploy ผ่าน Render
@@ -41,63 +50,99 @@ async function checkBots() {
     }
   }
 }
-setInterval(checkBots, 30000); // ตรวจทุก 30 วิ
+setInterval(checkBots, 30000);
 
 // หน้าเว็บหลัก
 app.get("/", (req, res) => {
-  const now = Date.now();
-  let html = `
+  res.send(`
   <html>
   <head>
     <meta charset="utf-8">
-    <title>Bot Monitor</title>
+    <title>Bot Monitor Dashboard</title>
     <style>
-      body { font-family: 'Segoe UI', sans-serif; background: #1e1e2f; color: white; padding: 20px; }
-      h1 { text-align: center; color: #00d4ff; }
-      .status-on { color: #4CAF50; font-weight: bold; }
-      .status-off { color: #FF5252; font-weight: bold; }
-      table { border-collapse: collapse; width: 100%; background: #2c2c3e; border-radius: 10px; overflow: hidden; }
-      th, td { padding: 12px 15px; border-bottom: 1px solid #444; }
-      th { background: #00d4ff; color: black; }
-      tr:hover { background: #383850; }
+      body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; padding: 20px; margin: 0; }
+      h1 { text-align: center; color: #38bdf8; margin-bottom: 10px; }
+      .section { margin-bottom: 30px; }
+      .card { background: #1e293b; padding: 15px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 10px; border-bottom: 1px solid #334155; text-align: left; }
+      th { background: #38bdf8; color: black; }
+      tr:hover { background: #334155; }
+      .status-on { color: #4ade80; font-weight: bold; }
+      .status-off { color: #f87171; font-weight: bold; }
+      .alert-list { list-style: none; padding: 0; margin: 0; }
+      .alert-item { background: #1e3a8a; padding: 10px; margin-bottom: 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .alert-bot { font-weight: bold; color: #93c5fd; }
+      .alert-time { font-size: 0.9em; color: #e0f2fe; }
       .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
       .switch input { opacity: 0; width: 0; height: 0; }
       .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
       .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-      input:checked + .slider { background-color: #4CAF50; }
+      input:checked + .slider { background-color: #4ade80; }
       input:checked + .slider:before { transform: translateX(26px); }
-      form { text-align: center; margin-top: 20px; }
+      form { text-align: center; margin-top: 10px; }
     </style>
   </head>
   <body>
     <h1>📡 Bot Monitor Dashboard</h1>
-    <table>
-      <tr><th>Bot ID</th><th>เวลายิงล่าสุด</th><th>สถานะ</th></tr>
-  `;
 
-  for (const [botId, lastPing] of Object.entries(bots)) {
-    const diff = Math.floor((now - lastPing) / 1000);
-    html += `<tr>
-      <td>${botId}</td>
-      <td>${new Date(lastPing).toLocaleTimeString()}</td>
-      <td class="${diff > 60 ? "status-off" : "status-on"}">${diff > 60 ? "❌ ไม่ตอบ" : "✅ ออนไลน์"}</td>
-    </tr>`;
-  }
+    <div class="section card">
+      <h2>🔔 การแจ้งเตือนล่าสุด</h2>
+      <ul class="alert-list" id="alertList"></ul>
+    </div>
 
-  html += `
-    </table>
-    <form method="POST" action="/toggle">
-      <label class="switch">
-        <input type="checkbox" name="toggle" onchange="this.form.submit()" ${allowReceive ? "checked" : ""}>
-        <span class="slider"></span>
-      </label>
-      <p>${allowReceive ? "เปิดรับการยิง" : "ปิดรับการยิง"}</p>
-    </form>
+    <div class="section card">
+      <h2>📋 สถานะบอท</h2>
+      <table>
+        <thead><tr><th>Bot ID</th><th>เวลายิงล่าสุด</th><th>สถานะ</th></tr></thead>
+        <tbody id="botTable"></tbody>
+      </table>
+    </div>
+
+    <div class="section card">
+      <h2>⚙️ การตั้งค่า</h2>
+      <form method="POST" action="/toggle">
+        <label class="switch">
+          <input type="checkbox" name="toggle" onchange="this.form.submit()" id="receiveSwitch">
+          <span class="slider"></span>
+        </label>
+        <p id="receiveStatus"></p>
+      </form>
+    </div>
+
+    <script>
+      async function fetchData() {
+        const res = await fetch('/data');
+        const data = await res.json();
+
+        // อัปเดตตารางบอท
+        const botTable = document.getElementById('botTable');
+        botTable.innerHTML = '';
+        const now = Date.now();
+        for (const [botId, lastPing] of Object.entries(data.bots)) {
+          const diff = Math.floor((now - lastPing) / 1000);
+          const status = diff > 60 ? '<span class="status-off">❌ ไม่ตอบ</span>' : '<span class="status-on">✅ ออนไลน์</span>';
+          botTable.innerHTML += \`<tr><td>\${botId}</td><td>\${new Date(lastPing).toLocaleTimeString()}</td><td>\${status}</td></tr>\`;
+        }
+
+        // อัปเดตรายการแจ้งเตือน
+        const alertList = document.getElementById('alertList');
+        alertList.innerHTML = '';
+        data.alerts.forEach(a => {
+          alertList.innerHTML += \`<li class="alert-item"><span class="alert-bot">🤖 \${a.botId}</span><span class="alert-time">\${new Date(a.time).toLocaleTimeString()}</span></li>\`;
+        });
+
+        // อัปเดตสถานะสวิตช์
+        document.getElementById('receiveSwitch').checked = data.allowReceive;
+        document.getElementById('receiveStatus').textContent = data.allowReceive ? "เปิดรับการยิง" : "ปิดรับการยิง";
+      }
+
+      setInterval(fetchData, 5000);
+      fetchData();
+    </script>
   </body>
   </html>
-  `;
-
-  res.send(html);
+  `);
 });
 
 export default app;
