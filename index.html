@@ -1,0 +1,88 @@
+<script type="module">
+import express from "express";
+
+const app = express();
+app.use(express.json());
+
+// ตั้งค่าเริ่มต้น
+let bots = {}; // เก็บเวลายิงล่าสุด { botId: timestamp }
+let allowReceive = true; // เปิดรับการยิง
+
+// API ที่บอทยิงมา
+app.post("/ping/:botId", (req, res) => {
+  if (!allowReceive) return res.status(403).json({ message: "Receiving disabled" });
+  const botId = req.params.botId;
+  bots[botId] = Date.now();
+  res.json({ message: `Bot ${botId} ping received` });
+});
+
+// API สำหรับเปิด/ปิดการรับการยิง
+app.post("/toggle", (req, res) => {
+  allowReceive = !allowReceive;
+  res.json({ allowReceive });
+});
+
+// ตรวจบอทและ deploy ผ่าน Render
+async function checkBots() {
+  const now = Date.now();
+  const timeout = 60000; // 1 นาที
+  for (const [botId, lastPing] of Object.entries(bots)) {
+    if (now - lastPing > timeout) {
+      console.log(`Bot ${botId} ไม่ยิงมานาน กำลัง deploy ผ่าน Render...`);
+      try {
+        await fetch(`https://api.render.com/deploy/${botId}`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.RENDER_TOKEN}`,
+            "Content-Type": "application/json"
+          }
+        });
+      } catch (err) {
+        console.error("Deploy error:", err);
+      }
+    }
+  }
+}
+setInterval(checkBots, 30000); // ตรวจทุก 30 วิ
+
+// หน้าเว็บแสดงสถานะ
+app.get("/", (req, res) => {
+  let html = `
+    <html>
+      <head>
+        <title>Bot Monitor</title>
+        <style>
+          body { font-family: sans-serif; background: #f5f5f5; padding: 20px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { padding: 8px 12px; border: 1px solid #ccc; }
+          th { background: #ddd; }
+          button { padding: 10px 20px; margin-top: 10px; }
+        </style>
+      </head>
+      <body>
+        <h1>สถานะบอท</h1>
+        <table>
+          <tr><th>Bot ID</th><th>เวลายิงล่าสุด</th><th>สถานะ</th></tr>
+  `;
+  const now = Date.now();
+  for (const [botId, lastPing] of Object.entries(bots)) {
+    const diff = Math.floor((now - lastPing) / 1000);
+    html += `<tr>
+      <td>${botId}</td>
+      <td>${new Date(lastPing).toLocaleTimeString()}</td>
+      <td style="color:${diff > 60 ? "red" : "green"}">${diff > 60 ? "ไม่ตอบ" : "ออนไลน์"}</td>
+    </tr>`;
+  }
+  html += `
+        </table>
+        <form method="POST" action="/toggle">
+          <button type="submit">${allowReceive ? "ปิดรับการยิง" : "เปิดรับการยิง"}</button>
+        </form>
+      </body>
+    </html>
+  `;
+  res.send(html);
+});
+
+export default app;
+</script>
