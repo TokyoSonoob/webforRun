@@ -52,15 +52,25 @@ app.get("/", (req, res) => {
     <meta charset="utf-8">
     <title>Bot Monitor</title>
     <style>
-      body { font-family: sans-serif; background: #f5f5f5; padding: 20px; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { padding: 8px 12px; border: 1px solid #ccc; }
-      th { background: #ddd; }
-      button { padding: 10px 20px; margin-top: 10px; }
+      body { font-family: 'Segoe UI', sans-serif; background: #1e1e2f; color: white; padding: 20px; }
+      h1 { text-align: center; color: #00d4ff; }
+      .status-on { color: #4CAF50; font-weight: bold; }
+      .status-off { color: #FF5252; font-weight: bold; }
+      table { border-collapse: collapse; width: 100%; background: #2c2c3e; border-radius: 10px; overflow: hidden; }
+      th, td { padding: 12px 15px; border-bottom: 1px solid #444; }
+      th { background: #00d4ff; color: black; }
+      tr:hover { background: #383850; }
+      .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+      .switch input { opacity: 0; width: 0; height: 0; }
+      .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+      .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+      input:checked + .slider { background-color: #4CAF50; }
+      input:checked + .slider:before { transform: translateX(26px); }
+      form { text-align: center; margin-top: 20px; }
     </style>
   </head>
   <body>
-    <h1>สถานะบอท</h1>
+    <h1>📡 Bot Monitor Dashboard</h1>
     <table>
       <tr><th>Bot ID</th><th>เวลายิงล่าสุด</th><th>สถานะ</th></tr>
   `;
@@ -70,14 +80,18 @@ app.get("/", (req, res) => {
     html += `<tr>
       <td>${botId}</td>
       <td>${new Date(lastPing).toLocaleTimeString()}</td>
-      <td style="color:${diff > 60 ? "red" : "green"}">${diff > 60 ? "ไม่ตอบ" : "ออนไลน์"}</td>
+      <td class="${diff > 60 ? "status-off" : "status-on"}">${diff > 60 ? "❌ ไม่ตอบ" : "✅ ออนไลน์"}</td>
     </tr>`;
   }
 
   html += `
     </table>
     <form method="POST" action="/toggle">
-      <button type="submit">${allowReceive ? "ปิดรับการยิง" : "เปิดรับการยิง"}</button>
+      <label class="switch">
+        <input type="checkbox" name="toggle" onchange="this.form.submit()" ${allowReceive ? "checked" : ""}>
+        <span class="slider"></span>
+      </label>
+      <p>${allowReceive ? "เปิดรับการยิง" : "ปิดรับการยิง"}</p>
     </form>
   </body>
   </html>
@@ -86,5 +100,4 @@ app.get("/", (req, res) => {
   res.send(html);
 });
 
-// ส่ง app ให้ Vercel ใช้
 export default app;
