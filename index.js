@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Deploy • Purple</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Animate.css (ใช้กับป๊อปอัพ) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4/animate.min.css">
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial; }
+  a, button { -webkit-tap-highlight-color: transparent; }
+
+  /* ===== ปุ่มทุกปุ่มมีอนิเมชัน (hover + ripple ตอนคลิก) ===== */
+  .btn {
+    position: relative;
+    overflow: hidden;                /* ให้ ripple อยู่ในปุ่ม */
+    transition: transform .12s ease, box-shadow .2s ease, background-color .2s ease;
+    will-change: transform, box-shadow;
+  }
+  .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 28px rgba(168,85,247,.24);
+  }
+  .btn:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 18px rgba(168,85,247,.18);
+  }
+  .btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(168,85,247,.45);
+  }
+  /* Ripple element */
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    opacity: .55;
+    pointer-events: none;
+    animation: ripple .6s ease-out forwards;
+    background: radial-gradient(circle, rgba(255,255,255,.65) 0%, rgba(255,255,255,.25) 45%, rgba(255,255,255,0) 70%);
+    mix-blend-mode: screen;
+  }
+  @keyframes ripple {
+    to { transform: scale(12); opacity: 0; }
+  }
+
+  /* ===== การ์ดพื้นหลัง + เงา “มีมิติ” ไม่หมุน ===== */
+  .glass {
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 1rem;
+    position: relative;
+  }
+  /* เงาลึกแบบหายใจ (breathing) เบา ๆ */
+  .glow {
+    box-shadow:
+      0 0 18px rgba(168,85,247,.16),
+      0 0 46px rgba(168,85,247,.10);
+    animation: cardBreath 6.5s ease-in-out infinite;
+  }
+  @keyframes cardBreath {
+    0%   { box-shadow: 0 0 16px rgba(168,85,247,.18), 0 0 42px rgba(168,85,247,.10); }
+    50%  { box-shadow: 0 0 32px rgba(236,72,153,.30), 0 0 84px rgba(236,72,153,.18); }
+    100% { box-shadow: 0 0 16px rgba(168,85,247,.18), 0 0 42px rgba(168,85,247,.10); }
+  }
+  /* ฮาโลนิ่ง ๆ ไม่หมุน (เพิ่มมิติด้านหลัง) */
+  .glow::before{
+    content:"";
+    position:absolute; inset:-2px;
+    border-radius: inherit;
+    z-index:-1;
+    background: conic-gradient(
+      from 0deg,
+      rgba(168,85,247,.16),
+      rgba(236,72,153,.18),
+      rgba(99,102,241,.18),
+      rgba(168,85,247,.16)
+    );
+    filter: blur(22px);
+  }
+
+  .spin { animation: spin 1s linear infinite; } /* ยังเก็บไว้ใช้กับไอคอนลูกศรระหว่างยิงคำสั่ง */
+  @keyframes spin { to { transform: rotate(360deg) } }
+
+  /* ===== Badge สถานะ: ใหญ่ + neon + ไฮไลต์วิ่ง ===== */
+  .status-badge{
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: .5rem 1rem;
+    border-radius: 9999px;
+    font-weight: 900;
+    font-size: 1rem;
+    letter-spacing:.4px;
+    text-transform: uppercase;
+    overflow: hidden;
+    user-select: none;
+  }
+  .status-badge::after{
+    content: "";
+    position: absolute; inset: -30% auto -30% -40%;
+    width: 45%; height: 160%;
+    background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.28) 50%, transparent 100%);
+    transform: skewX(-15deg) translateX(0);
+    animation: sheen 2.6s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes sheen{
+    0%   { transform: skewX(-15deg) translateX(-120%); opacity:.0; }
+    15%  { opacity:.65; }
+    50%  { opacity:.45; }
+    100% { transform: skewX(-15deg) translateX(260%); opacity:.0; }
+  }
+  .badge-up{
+    color:#d1fae5;
+    background: radial-gradient(200% 140% at 50% 0%, rgba(16,185,129,.20), rgba(16,185,129,.08));
+    border: 1px solid rgba(16,185,129,.45);
+    box-shadow:
+      0 0 10px rgba(16,185,129,.45),
+      0 0 26px rgba(16,185,129,.30),
+      inset 0 0 12px rgba(16,185,129,.12);
+    animation: neonUpPulse 2.2s ease-in-out infinite, glowUp 6s linear infinite;
+    text-shadow: 0 0 6px rgba(16,185,129,.8), 0 0 18px rgba(16,185,129,.4);
+  }
+  .badge-down{
+    color:#fee2e2;
+    background: radial-gradient(200% 140% at 50% 0%, rgba(239,68,68,.18), rgba(239,68,68,.08));
+    border: 1px solid rgba(239,68,68,.45);
+    box-shadow:
+      0 0 10px rgba(239,68,68,.45),
+      0 0 26px rgba(239,68,68,.30),
+      inset 0 0 12px rgba(239,68,68,.12);
+    animation: neonDownPulse 2.2s ease-in-out infinite, glowDown 6s linear infinite;
+    text-shadow: 0 0 6px rgba(239,68,68,.8), 0 0 18px rgba(239,68,68,.4);
+  }
+  @keyframes neonUpPulse{
+    0%,100%{ box-shadow: 0 0 10px rgba(16,185,129,.45), 0 0 26px rgba(16,185,129,.28), inset 0 0 10px rgba(16,185,129,.10); }
+    50%   { box-shadow: 0 0 14px rgba(16,185,129,.8), 0 0 40px rgba(16,185,129,.55), inset 0 0 16px rgba(16,185,129,.18); }
+  }
+  @keyframes neonDownPulse{
+    0%,100%{ box-shadow: 0 0 10px rgba(239,68,68,.45), 0 0 26px rgba(239,68,68,.28), inset 0 0 10px rgba(239,68,68,.10); }
+    50%   { box-shadow: 0 0 14px rgba(239,68,68,.8), 0 0 40px rgba(239,68,68,.55), inset 0 0 16px rgba(239,68,68,.18); }
+  }
+  @keyframes glowUp{
+    0%{ text-shadow: 0 0 6px rgba(16,185,129,.7), 0 0 18px rgba(16,185,129,.35); }
+    50%{ text-shadow: 0 0 10px rgba(16,185,129,1),  0 0 28px rgba(16,185,129,.55); }
+    100%{ text-shadow: 0 0 6px rgba(16,185,129,.7), 0 0 18px rgba(16,185,129,.35); }
+  }
+  @keyframes glowDown{
+    0%{ text-shadow: 0 0 6px rgba(239,68,68,.7), 0 0 18px rgba(239,68,68,.35); }
+    50%{ text-shadow: 0 0 10px rgba(239,68,68,1),  0 0 28px rgba(239,68,68,.55); }
+    100%{ text-shadow: 0 0 6px rgba(239,68,68,.7), 0 0 18px rgba(239,68,68,.35); }
+  }
+
+  /* ===== SweetAlert2 theme ===== */
+  .swal2-popup.custom-popup {
+    border-radius: 1.25rem !important;
+    background: radial-gradient(1200px 300px at 50% 0%, rgba(168,85,247,.12), rgba(0,0,0,.5)) , #0b0613;
+    border: 1px solid rgba(168,85,247,.25);
+    box-shadow: 0 10px 60px rgba(168,85,247,.25), inset 0 1px 0 rgba(255,255,255,.06);
+    color: #f8f7ff;
+    backdrop-filter: blur(10px);
+  }
+  .swal2-title.custom-title { letter-spacing: .2px; font-weight: 800; }
+  .swal2-html-container.custom-text { font-weight: 600; color: #e9d5ff; }
+  .swal2-confirm.custom-confirm {
+    border-radius: 9999px !important;
+    padding: .75rem 1.25rem !important;
+    box-shadow: 0 6px 30px rgba(168,85,247,.35);
+  }
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-[#0b0613] via-[#0a0511] to-black text-slate-200 selection:bg-fuchsia-600/30">
+
+  <!-- Top Bar -->
+  <header class="sticky top-0 z-20 border-b border-white/5 bg-gradient-to-r from-purple-900/20 to-fuchsia-700/10 backdrop-blur">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="h-8 w-8 rounded-xl bg-fuchsia-600/20 grid place-items-center glow">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 text-fuchsia-400"><path fill="currentColor" d="M2 12h8l-1 9 13-14h-8l1-9z"/></svg>
+        </div>
+        <h1 class="text-lg sm:text-2xl font-extrabold tracking-tight text-slate-100">Deploy Sea muww</h1>
+      </div>
+      <div class="hidden sm:flex items-center gap-2">
+        <button id="refreshBtn" class="btn rounded-xl px-4 py-2 bg-white/10 hover:bg-white/15 font-semibold">รีเฟรชสถานะ</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    <section class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" id="cards"></section>
+  </main>
+
+  <!-- Bottom action bar (mobile) -->
+  <nav class="fixed bottom-3 inset-x-0 px-4 sm:hidden">
+    <div class="glass glow rounded-2xl p-2 flex items-center justify-between">
+      <button id="deployAllBtnBottom" class="btn flex-1 mr-2 rounded-xl px-4 py-3 bg-fuchsia-600 text-white font-semibold">Deploy ทั้งหมด</button>
+      <button id="refreshBtnBottom" class="btn flex-1 ml-2 rounded-xl px-4 py-3 bg-white/10 text-slate-100 font-semibold">รีเฟรช</button>
+    </div>
+  </nav>
+
+<script>
+// ================== CONFIG: บอท ==================
+const BOTS = [
+  { id: "bot1", name: "Bot #1",
+    url: "https://bot1-nm2t.onrender.com",
+    deployUrl: "https://api.render.com/deploy/srv-d2f32vqdbo4c738l2180?key=yz-mayrpjzA" },
+  { id: "bot2", name: "Bot #2",
+    url: "https://bot2-7l5q.onrender.com",
+    deployUrl: "https://api.render.com/deploy/srv-d2f2oammcj7s73bljp10?key=1jaLWiGvY_4" },
+  { id: "bot3", name: "Bot #3",
+    url: "https://bot3-ytqo.onrender.com",
+    deployUrl: "https://api.render.com/deploy/srv-d2b4q0er433s739ert50?key=Z6c18pBCcJM" },
+  { id: "bot4", name: "Bot #4",
+    url: "https://bot4-kper.onrender.com",
+    deployUrl: "https://api.render.com/deploy/srv-d2govnbuibrs73eiibng?key=05vdE2aWylc" },
+];
+
+// ============== Helpers ==============
+const keyFor = (id) => `deployState:${id}`;
+const fmt = (ts) => ts ? new Date(ts).toLocaleString() : "-";
+const $ = (s, r=document) => r.querySelector(s);
+
+// ============== UI Render ==============
+function cardTemplate(b) {
+  const st = JSON.parse(localStorage.getItem(keyFor(b.id)) || "{}");
+  return `
+  <div class="glass glow rounded-2xl p-4 md:p-5" id="card-${b.id}">
+    <div class="flex items-center justify-between gap-2">
+      <div>
+        <div class="text-base md:text-lg font-semibold text-slate-100">${b.name}</div>
+        <a href="${b.url}" target="_blank" rel="noreferrer" class="text-xs text-fuchsia-300 underline underline-offset-2 break-all">${b.url}</a>
+      </div>
+      <span id="badge-${b.id}" class="status-badge badge-down">wait..</span>
+    </div>
+
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      <div class="rounded-xl bg-white/5 border border-white/10 p-3">
+        <div class="text-[11px] text-slate-400">Latency</div>
+        <div id="lat-${b.id}" class="text-sm md:text-base font-semibold">-</div>
+      </div>
+      <div class="rounded-xl bg-white/5 border border-white/10 p-3">
+        <div class="text-[11px] text-slate-400">HTTP</div>
+        <div id="code-${b.id}" class="text-sm md:text-base font-semibold">-</div>
+      </div>
+      <div class="rounded-xl bg-white/5 border border-white/10 p-3">
+        <div class="text-[11px] text-slate-400">กดล่าสุด</div>
+        <div id="lastAt-${b.id}" class="text-sm md:text-base font-semibold">${fmt(st.lastDeployAt)}</div>
+      </div>
+      <div class="rounded-xl bg-white/5 border border-white/10 p-3">
+        <div class="text-[11px] text-slate-400">ผลล่าสุด</div>
+        <div id="lastRes-${b.id}" class="text-sm md:text-base font-semibold">${st.lastDeployResult || "-"}</div>
+      </div>
+    </div>
+
+    <div id="lastMsg-${b.id}" class="mt-2 text-[12px] text-slate-300 line-clamp-2">${st.lastDeployMsg || "-"}</div>
+
+    <div class="mt-4 flex items-center gap-2">
+      <button class="btn rounded-xl px-4 py-2 bg-fuchsia-600 text-white font-semibold hover:bg-fuchsia-500 flex items-center gap-2"
+              onclick="deploy('${b.id}')">
+        <svg id="icon-${b.id}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+        </svg>
+        Deploy
+      </button>
+      <a href="${b.url}" target="_blank" class="btn px-3 py-2 rounded-xl border bg-white/5 hover:bg-white/10 text-sm">เปิดบอท</a>
+    </div>
+  </div>`;
+}
+function renderCards() {
+  $("#cards").innerHTML = BOTS.map(cardTemplate).join("");
+}
+
+// ================= Health Check =================
+async function checkHealth(bot) {
+  const start = Date.now();
+  try {
+    const r = await fetch(bot.url, { mode: "no-cors" });
+    const ms = Date.now() - start;
+    return { status: "UP", ms, code: r.status || "200?" };
+  } catch {
+    return { status: "DOWN", ms: null, code: "-" };
+  }
+}
+async function refreshAll() {
+  await Promise.all(BOTS.map(async b => {
+    const h = await checkHealth(b);
+    const badge = $(`#badge-${b.id}`);
+    const lat = $(`#lat-${b.id}`);
+    const code = $(`#code-${b.id}`);
+    if (badge) {
+      badge.textContent = h.status;
+      badge.classList.remove('badge-up','badge-down');
+      badge.classList.add(h.status === "UP" ? "badge-up" : "badge-down");
+    }
+    if (lat)  lat.textContent  = h.ms ? `${h.ms} ms` : "-";
+    if (code) code.textContent = h.code ?? "-";
+  }));
+}
+
+// ================= SweetAlert2 Helpers =================
+function popupSuccess(title, text) {
+  Swal.fire({
+    icon: 'success',
+    title,
+    html: `<div class="text-sm">${text}</div>`,
+    showConfirmButton: true,
+    confirmButtonText: 'เยี่ยมมาก!',
+    customClass: {
+      popup: 'custom-popup animate__animated',
+      title: 'custom-title',
+      htmlContainer: 'custom-text',
+      confirmButton: 'custom-confirm'
+    },
+    showClass: { popup: 'animate__zoomInDown animate__faster' },
+    hideClass: { popup: 'animate__hinge' },
+    background: '#0b0613',
+    color: '#f5f3ff',
+    confirmButtonColor: '#a855f7'
+  });
+}
+function popupError(title, text) {
+  Swal.fire({
+    icon: 'error',
+    title,
+    html: `<div class="text-sm">${text}</div>`,
+    showConfirmButton: true,
+    confirmButtonText: 'รับทราบ',
+    customClass: {
+      popup: 'custom-popup animate__animated',
+      title: 'custom-title',
+      htmlContainer: 'custom-text',
+      confirmButton: 'custom-confirm'
+    },
+    showClass: { popup: 'animate__shakeX' },
+    hideClass: { popup: 'animate__fadeOutUp' },
+    background: '#0b0613',
+    color: '#fee2e2',
+    confirmButtonColor: '#ef4444'
+  });
+}
+function popupInfo(title, text) {
+  Swal.fire({
+    icon: 'info',
+    title,
+    html: `<div class="text-sm">${text}</div>`,
+    timer: 1200,
+    showConfirmButton: false,
+    customClass: { popup: 'custom-popup animate__animated' },
+    showClass: { popup: 'animate__bounceIn' },
+    hideClass: { popup: 'animate__fadeOut' },
+    background: '#0b0613',
+    color: '#c7d2fe'
+  });
+}
+
+// ================= Deploy =================
+async function deploy(id) {
+  const bot = BOTS.find(x => x.id === id);
+  if (!bot) return;
+
+  const icon = $(`#icon-${id}`);
+  icon?.classList.add("spin"); // แค่หมุนไอคอนลูกศรขณะส่งคำสั่ง
+
+  const loading = Swal.fire({
+    title: `กำลังส่งคำสั่ง…`,
+    html: `<div class="text-xs opacity-80">${bot.name}</div>`,
+    didOpen: () => Swal.showLoading(),
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    customClass: { popup: 'custom-popup' },
+    background: '#0b0613',
+    color: '#ddd'
+  });
+
+  try {
+    const res = await fetch(bot.deployUrl, { method: "POST", mode: "no-cors" });
+    const ts = new Date().toISOString();
+    const state = {
+      lastDeployAt: ts,
+      lastDeployResult: res.ok ? "✅ สำเร็จ" : "⚠️ ส่งคำสั่งแล้ว (no-cors)",
+      lastDeployMsg: res.ok ? "Triggered OK" : "ไม่ทราบสถานะ HTTP (ดู Render Dashboard)"
+    };
+    localStorage.setItem(keyFor(id), JSON.stringify(state));
+
+    $(`#lastAt-${id}`).textContent = fmt(state.lastDeployAt);
+    $(`#lastRes-${id}`).textContent = state.lastDeployResult;
+    $(`#lastMsg-${id}`).textContent = state.lastDeployMsg;
+
+    Swal.close();
+    popupSuccess(`${bot.name} ✓`, 'ส่ง Trigger Deploy แล้ว');
+  } catch (e) {
+    Swal.close();
+    popupError(`${bot.name}`, 'เกิดข้อผิดพลาด: ' + e.message);
+  } finally {
+    icon?.classList.remove("spin");
+  }
+}
+async function deployAll() {
+  popupInfo('เริ่ม Deploy ทั้งหมด', 'กำลังทยอยส่งคำสั่ง…');
+  for (const b of BOTS) {
+    await deploy(b.id);
+  }
+  popupSuccess('เสร็จสิ้นทั้งหมด ✓', 'ครบทุกบอทแล้ว');
+}
+
+// ================= Start =================
+renderCards();
+refreshAll();
+setInterval(refreshAll, 1000);
+
+// ปุ่มบน/ล่าง
+$("#refreshBtn")?.addEventListener("click", () => { refreshAll(); popupInfo('อัปเดตแล้ว', 'รีเฟรชสถานะบอท'); });
+$("#deployAllBtn")?.addEventListener("click", deployAll);
+$("#refreshBtnBottom")?.addEventListener("click", () => { refreshAll(); popupInfo('อัปเดตแล้ว', 'รีเฟรชสถานะบอท'); });
+$("#deployAllBtnBottom")?.addEventListener("click", deployAll);
+
+// ===== Ripple click effect สำหรับปุ่มทุกปุ่ม =====
+function attachRipple(el) {
+  el.addEventListener('click', (e) => {
+    const rect = el.getBoundingClientRect();
+    const ripple = document.createElement('span');
+    const size = Math.max(rect.width, rect.height);
+    const x = e.clientX - rect.left - size/2;
+    const y = e.clientY - rect.top - size/2;
+    ripple.className = 'ripple';
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
+    el.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove());
+  });
+}
+document.querySelectorAll('.btn').forEach(attachRipple);
+
+window.deploy = deploy;
+</script>
+</body>
+</html>
